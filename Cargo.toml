@@ -1,0 +1,22 @@
+[package]
+name = "iron-daemon"
+version = "0.1.0"
+edition = "2021"
+
+# two binaries - daemon.rs and client.rs
+[[bin]]
+name = "daemon"
+path = "src/daemon.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
+
+[dependencies]
+# logging
+log = "*"
+simplelog = "*"
+# output
+pretty-bytes = "*"
+# signals
+signal-hook = "*"
