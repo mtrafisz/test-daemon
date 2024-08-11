@@ -9,7 +9,6 @@ use std::process::Command;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Instant;
 
 mod shared;
 use shared::PORT;
@@ -83,26 +82,23 @@ fn main() {
         let running_updater = running.clone();
 
         move || {
-            let mut last = Instant::now();
             let mut last_bytes = get_bytes_transfered(iface.clone()).expect("failed to get bytes");
             loop {
-                let now = Instant::now();
-                let diff = now.duration_since(last);
-                if diff.as_secs() >= 1 {
-                    last = now;
-                    let new_bytes = get_bytes_transfered(iface.clone()).expect("failed to get bytes");
-                    let mut byte_diff = byte_diff.lock().unwrap();
-                    let rx_diff = new_bytes.rx - last_bytes.rx;
-                    let tx_diff = new_bytes.tx - last_bytes.tx;
-                    
-                    byte_diff.rx = rx_diff;
-                    byte_diff.tx = tx_diff;
-                    last_bytes = new_bytes;
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let new_bytes = get_bytes_transfered(iface.clone()).expect("failed to get bytes");
+                let mut byte_diff = byte_diff.lock().unwrap();
+                let rx_diff = new_bytes.rx - last_bytes.rx;
+                let tx_diff = new_bytes.tx - last_bytes.tx;
+                
+                byte_diff.rx = rx_diff;
+                byte_diff.tx = tx_diff;
+                last_bytes = new_bytes;
 
-                    let running = running_updater.lock().unwrap();
-                    if !*running {
-                        break;
-                    }
+                info!("RX: {}, TX: {}", rx_diff, tx_diff);
+
+                let running = running_updater.lock().unwrap();
+                if !*running {
+                    break;
                 }
             }
         }
@@ -149,11 +145,14 @@ fn main() {
         }
     });
 
+    let running = running.clone();
     loop {
-        let running = running.clone();
         let running = running.lock().unwrap();
-        if !*running {
-            break;
+        if *running {
+            drop(running);
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            continue;
         }
+        break;
     }
 }
