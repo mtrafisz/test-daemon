@@ -1,15 +1,15 @@
-use log::{info, warn, error};
+use log::info;
 use simplelog::*;
 use pretty_bytes::converter::convert;
 use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 
 use std::io::{Read, Write};
-use std::net::{IpAddr, TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::process::Command;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 mod shared;
 use shared::PORT;
@@ -75,14 +75,12 @@ fn main() {
 
     let byte_diff = Arc::new(Mutex::new(BytePair { rx: 0, tx: 0 }));
     let running = Arc::new(Mutex::new(true));
-    let running_updater = running.clone();
-    let running_signal = running.clone();
-    let running_server = running.clone();
 
     // update the byte_diff every second
     thread::spawn({
         let byte_diff = byte_diff.clone();
         let iface = get_default_interface();
+        let running_updater = running.clone();
 
         move || {
             let mut last = Instant::now();
@@ -110,7 +108,10 @@ fn main() {
         }
     });
 
+    // update the "running" flag if we receive a signal
     thread::spawn({
+        let running_signal = running.clone();
+
         move || {
             for sig in signals.forever() {
                 info!("Received signal {:?}", sig);
@@ -121,10 +122,12 @@ fn main() {
         }
     });
     
+    // listen for incoming connections and respond with the current byte_diff
     let listener = TcpListener::bind(format!("0.0.0.0:{}", PORT)).expect("failed to bind to port");
     thread::spawn({
         let byte_diff = byte_diff.clone();
-        let running = running_server.clone();
+        let running_server = running.clone();
+
         move || {
             for stream in listener.incoming() {
                 let mut stream = stream.expect("failed to accept connection");
@@ -138,7 +141,7 @@ fn main() {
 
                 stream.shutdown(std::net::Shutdown::Both).expect("failed to shutdown stream");
 
-                let running = running.lock().unwrap();
+                let running = running_server.lock().unwrap();
                 if !*running {
                     break;
                 }
@@ -147,10 +150,10 @@ fn main() {
     });
 
     loop {
-        let running = running_server.lock().unwrap();
+        let running = running.clone();
+        let running = running.lock().unwrap();
         if !*running {
             break;
         }
     }
-
 }
