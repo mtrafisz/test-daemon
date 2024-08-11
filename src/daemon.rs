@@ -94,8 +94,6 @@ fn main() {
                 byte_diff.tx = tx_diff;
                 last_bytes = new_bytes;
 
-                info!("RX: {}, TX: {}", rx_diff, tx_diff);
-
                 let running = running_updater.lock().unwrap();
                 if !*running {
                     break;
